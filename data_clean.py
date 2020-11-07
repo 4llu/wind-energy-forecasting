@@ -32,6 +32,18 @@ for m in range(1, 13):
     for f in important_f:
         for p in remove_p:
             clean_data[f].pop(p, None)
+    
+    # Find the longest ts and buff all to that length (copy last value)
+    # This is dirty as fuck, but the worst places have already been removed and the rest only vary by max 5 places
+    shortest = 10000
+    for f in important_f:
+        for p in clean_data[f].keys():
+            if len(clean_data[f][p]) < shortest:
+                shortest = len(clean_data[f][p])
+    for f in important_f:
+        for p in clean_data[f].keys():
+            clean_data[f][p] = clean_data[f][p][:shortest]
+    clean_data["times"] = clean_data["times"][:shortest]
 
     # Add missing values
     for f in important_f:

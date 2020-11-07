@@ -10,31 +10,63 @@ import json
 month_lengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 cur_day = 0
 
-# Places to remove for a reason or another (Mostly timesteps wrong)
-unfit_places = ["Helsinki Vuosaari Käärmeniementie",
+# Places to remove for a reason or another (Timesteps wrong, completely missing times, etc.)
+unfit_places = ["Hailuoto Marjaniemi",
+                "Halsua Purola",
+                "Hanko Tulliniemi",
+                "Helsinki Harmaja",
+                "Helsinki Vuosaari Käärmeniementie",
                 "Helsinki Vuosaari satama",
                 "Inari Ivalo lentoasema",
+                "Inari Saariselkä Kaunispää",
+                "Jomala Jomalaby",
+                "Jomala Maarianhamina lentoasema",
                 "Jyväskylä lentoasema",
+                "Jämsä Halli lentoasema",
                 "Järvenpää Sorto",
                 "Kajaani lentoasema",
+                "Kankaanpää Niinisalo lentokenttä",
+                "Kaskinen Sälgrund",
                 "Kemi I majakka",
                 "Kemi Kemi-Tornio lentoasema",
                 "Kittilä lentoasema",
                 "Korsnäs Bredskäret",
+                "Kotka Haapasaari",
                 "Kouvola Utti lentoasema",
                 "Kruunupyy Kokkola-Pietarsaari lentoasema",
+                "Kumlinge kirkonkylä",
                 "Kuopio Savilahti",
+                "Kustavi Isokari",
                 "Kuusamo lentoasema",
                 "Lahti Sopenkorpi",
                 "Lappeenranta Hiekkapakka",
+                "Lappeenranta Konnunsuo",
+                "Lappeenranta lentoasema",
+                "Lemland Nyhamn",
+                "Liperi Joensuu lentoasema",
                 "Lumparland Långnäs satama",
                 "Maarianhamina Länsisatama",
+                "Muonio Sammaltunturi",
+                "Mustasaari Valassaaret",
                 "Oulu lentoasema",
+                "Parikkala Koitsanlahti",
+                "Pello kirkonkylä",
+                "Pirkkala Tampere-Pirkkala lentoasema",
                 "Pori lentoasema",
+                "Pori Tahkoluoto satama",
+                "Porvoo Emäsalo",
+                "Puolanka Paljakka",
+                "Raasepori Jussarö",
+                "Rauma Kylmäpihlaja",
+                "Salo Kiikala lentokenttä",
+                "Savonlinna lentoasema",
+                "Siilinjärvi Kuopio lentoasema",
                 "Sipoo Itätoukki",
                 "Sodankylä Tähtelä",
                 "Turku lentoasema",
                 "Vaasa lentoasema",
+                "Vantaa Helsinki-Vantaan lentoasema",
+                "Vieremä Kaarakkala",
                 ]
 
 # Reference for features and places
@@ -58,7 +90,7 @@ for ml in month_lengths:
                     base[f][p] += day[f][p][:-1] # Drop last value because it is the duplicate of the first value of the next day
 
     # Move timestamps into their own feature
-    base["times"] = list(map(lambda x: x[0], base["t2m"][list(base["t2m"].keys())[0]])) # Extract times
+    base["times"] = list(map(lambda x: x[0], base["t2m"]["Espoo Tapiola"])) # Extract times
     for f in features:
         for p in places:
             # print(f, p, i)
