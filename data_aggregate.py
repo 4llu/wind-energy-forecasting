@@ -47,37 +47,26 @@ places = list(filter(lambda x: x not in unfit_places, ref["t2m"].keys())) # With
 # Aggregate months
 m = 1
 for ml in month_lengths:
-    first = None
+    base = { f : { p : [] for p in places } for f in features }
 
     # For all days in month
     for i in range(cur_day, cur_day + ml):
-        day = None
         with open("./data/raw/data{}.json".format(i), encoding="utf8") as data_file:
             day = json.load(data_file)
-
-        # Use first day as base    
-        if i == cur_day:
-            first = day
-            # Remove unfit places
-            for f in features:
-                for p in unfit_places:
-                    first[f].pop(p, None)
-        # Add others
-        else:
             for f in features:
                 for p in places:
-                    first[f][p] += day[f][p]
+                    base[f][p] += day[f][p][:-1] # Drop last value because it is the duplicate of the first value of the next day
 
     # Move timestamps into their own feature
-    first["times"] = list(map(lambda x: x[0], first["t2m"][list(first["t2m"].keys())[0]])) # Extract times
+    base["times"] = list(map(lambda x: x[0], base["t2m"][list(base["t2m"].keys())[0]])) # Extract times
     for f in features:
         for p in places:
             # print(f, p, i)
-            first[f][p] = list(map(lambda x: x[1], first[f][p][:-1])) # Drop last value because it is the duplicate of the first value of the next day
+            base[f][p] = list(map(lambda x: x[1], base[f][p]))
 
     # Write
     with open("./data/months/month{}.json".format(m), "w", encoding="utf8") as out_file:
-        json.dump(first, out_file, ensure_ascii=False)
+        json.dump(base, out_file, ensure_ascii=False)
 
     # Move on to next
     cur_day += ml
