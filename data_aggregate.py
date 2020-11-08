@@ -11,14 +11,19 @@ month_lengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 cur_day = 0
 
 # Places to remove for a reason or another (Timesteps wrong, completely missing times, etc.)
-unfit_places = ["Hailuoto Marjaniemi",
+unfit_places = ["Enontekiö Kilpisjärvi Saana",
+                "Espoo Tapiola",
+                "Hailuoto Marjaniemi",
                 "Halsua Purola",
                 "Hanko Tulliniemi",
                 "Helsinki Harmaja",
                 "Helsinki Vuosaari Käärmeniementie",
                 "Helsinki Vuosaari satama",
+                "Hämeenlinna Lammi Evo",
+                "Ilomantsi Mekrijärvi",
                 "Inari Ivalo lentoasema",
                 "Inari Saariselkä Kaunispää",
+                "Inari Seitalaassa",
                 "Jomala Jomalaby",
                 "Jomala Maarianhamina lentoasema",
                 "Jyväskylä lentoasema",
@@ -26,9 +31,11 @@ unfit_places = ["Hailuoto Marjaniemi",
                 "Järvenpää Sorto",
                 "Kajaani lentoasema",
                 "Kankaanpää Niinisalo lentokenttä",
+                "Kauhava lentokenttä",
                 "Kaskinen Sälgrund",
                 "Kemi I majakka",
                 "Kemi Kemi-Tornio lentoasema",
+                "Kauhajoki Kuja-Kokko",
                 "Kittilä lentoasema",
                 "Korsnäs Bredskäret",
                 "Kotka Haapasaari",
@@ -38,12 +45,15 @@ unfit_places = ["Hailuoto Marjaniemi",
                 "Kuopio Savilahti",
                 "Kustavi Isokari",
                 "Kuusamo lentoasema",
+                "Kristiinankaupunki Majakka",
                 "Lahti Sopenkorpi",
                 "Lappeenranta Hiekkapakka",
                 "Lappeenranta Konnunsuo",
                 "Lappeenranta lentoasema",
+                "Lappeenranta Lepola",
                 "Lemland Nyhamn",
                 "Liperi Joensuu lentoasema",
+                "Liperi Tuiskavanluoto",
                 "Lumparland Långnäs satama",
                 "Maarianhamina Länsisatama",
                 "Muonio Sammaltunturi",
@@ -58,15 +68,20 @@ unfit_places = ["Hailuoto Marjaniemi",
                 "Puolanka Paljakka",
                 "Raasepori Jussarö",
                 "Rauma Kylmäpihlaja",
+                "Rautavaara Ylä-Luosta",
+                "Rovaniemi rautatieasema",
                 "Salo Kiikala lentokenttä",
                 "Savonlinna lentoasema",
+                "Sotkamo Kuolaniemi",
                 "Siilinjärvi Kuopio lentoasema",
                 "Sipoo Itätoukki",
                 "Sodankylä Tähtelä",
                 "Turku lentoasema",
+                "Turku Rajakari",
                 "Vaasa lentoasema",
                 "Vantaa Helsinki-Vantaan lentoasema",
                 "Vieremä Kaarakkala",
+                "Ähtäri Inha"
                 ]
 
 # Reference for features and places
@@ -90,7 +105,7 @@ for ml in month_lengths:
                     base[f][p] += day[f][p][:-1] # Drop last value because it is the duplicate of the first value of the next day
 
     # Move timestamps into their own feature
-    base["times"] = list(map(lambda x: x[0], base["t2m"]["Espoo Tapiola"])) # Extract times
+    base["times"] = list(map(lambda x: x[0], base["t2m"]["Espoo Nuuksio"])) # Extract times
     for f in features:
         for p in places:
             # print(f, p, i)
