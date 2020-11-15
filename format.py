@@ -108,7 +108,7 @@ for m in months:
 # Create data frame
 df = pd.DataFrame(np.array(df_data), columns=columns)
 # Add datetimes as column because feather format only supports default indexing
-df["times"] = datetimes
+df["datetime"] = datetimes
 
 # For checking
 print(df.tail(5))
