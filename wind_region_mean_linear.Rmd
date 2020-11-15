@@ -1,0 +1,125 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Aggregate models
+
+```{r}
+library(arrow)
+library(lubridate)
+library(dplyr)
+library(rstanarm)
+library(ggplot2)
+library(bayesplot)
+```
+
+
+```{r}
+# rstanarm options
+options(mc.cores = parallel::detectCores())
+# Bayesplot
+theme_set(bayesplot::theme_default())
+```
+
+## Start stuff
+
+Load and preprocess predictors
+
+```{r}
+predictors <- arrow::read_feather("data/predictors/wind_region_mean_2018-01.feather")
+N = nrow(predictors)
+# The datetimes are in UTC.02 because of Feather I guess? They are actually just UTC
+predictors
+```
+
+Load and preprocess target
+
+```{r}
+# Load
+energy <- read.csv("data/energy/events.csv")
+
+# Drop unnecessary columns
+energy <- subset(energy, select=-c(Lopetusaika.UTC, Alkuaika.UTC.02.00, Lopetusaika.UTC.02.00))
+
+# simplify remaining column names
+colnames(energy)[1] = "datetime"
+colnames(energy)[2] = "energy"
+
+# Drop timesteps not included in predictors (include month 1 and hours 00, 06, 12, 18)
+target <- energy %>% filter(month(.$datetime) == 1) %>% filter(hour(.$datetime) %% 6 == 0)
+
+target
+```
+## Full aggregate linear model
+
+More preprocessing
+```{r}
+predictors_fa <- predictors %>%
+                              transmute(
+                                U10 = rowMeans(.[,1:17]),
+                                V10 = rowMeans(.[,18:34]),
+                                datetime) %>%
+                              mutate(
+                                W10 = sqrt(U10**2 + V10**2))
+ 
+head(predictors_fa)
+```
+
+```{r}
+data_fa <- predictors_fa
+data_fa["energy"] <- target$energy
+head(data_fa)
+```
+
+Combined U and V component
+```{r}
+post_fa_1 <- stan_glm(energy ~ W10,
+              data = data_fa,
+              family = gaussian(link = "identity"))
+```
+
+```{r}
+summary(post_fa_1)
+```
+
+```{r}
+base <- ggplot(data_fa, aes(x = W10, y = energy)) +
+         geom_point(size=1)
+base + geom_abline(intercept = coef(post_fa_1)[1], slope = coef(post_fa_1)[2])
+```
+
+```{r}
+draws_fa_1 <- as.data.frame(post_fa_1)
+colnames(draws_fa_1) <- c("a", "b", "sigma")
+head(draws_fa_1)
+```
+```{r}
+base +
+  geom_abline(data = draws_fa_1, aes(intercept = a, slope = b),
+              color = "skyblue", size = 0.2, alpha = 0.25) +
+  geom_abline(intercept = coef(post_fa_1)[1], slope = coef(post_fa_1)[2],
+              color = "skyblue4", size = 1)
+```
+
+Separate U and V component
+```{r}
+post_fa_2 <- stan_glm(energy ~ U10,
+              data = data_fa,
+              family = gaussian(link = "identity"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
