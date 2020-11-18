@@ -190,7 +190,28 @@ for (t in 1:length(time)) {
 head(region_means, n=20)
 ```
 ```{r}
-predictors <- as_tibble(region_means) %>% mutate(datetime = as_datetime(datetime))
+# Helper to to map months to seasons
+seasons <- rbind(
+              c(12, 1, 2), # 1, winter
+              c(3, 4, 5),  # 2, spring
+              c(6, 7, 8),  # 3, summer
+              c(9, 10, 11) # 4, fall
+            )
+
+season_map <- function(m) {
+  for (s in 1:4) {
+    if (m %in% seasons[s,]) {
+      return(s)
+    }
+  }  
+  return(-1)
+}
+
+predictors <- as_tibble(region_means) %>%
+                    # Change datetime format
+                    mutate(datetime = as_datetime(datetime)) %>% 
+                    # Add season
+                    mutate(season = map_int(month(datetime), season_map), .before = "u10")
 predictors
 ```
 
