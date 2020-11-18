@@ -246,11 +246,27 @@ aggregate_df
 ### Forecast Timestep Shift
 
 ```{r}
-# df: dataframe to shift
-# ts: timestep to shift in hours
-ts_shift <- function (df, ts) {
-  
+# df:      dataframe to shift
+# ts:      timestep to shift in hours
+# regions: number of regions
+ts_shift <- function (df, ts, regions) {
+  df_shift <- df %>% mutate(
+                      energy = lead(df$energy, n = ts * regions),
+                      log_energy = lead(df$log_energy, n = ts * regions)
+                    ) %>% 
+                    drop_na()
+  return(df_shift)
 }
+```
+
+```{r}
+ag_df_s2 <- ts_shift(aggregate_df, ts=2, regions=1)
+ag_df_s2
+```
+
+```{r}
+full_df_s2 <- ts_shift(full_df, ts=2, regions=17)
+full_df_s2
 ```
 
 
