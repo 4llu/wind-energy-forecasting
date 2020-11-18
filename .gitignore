@@ -2,3 +2,6 @@ data/
 .vscode/
 .Rproj.user
 *.Rproj
+*.RData
+*.Rhistory
+*.nb.html
