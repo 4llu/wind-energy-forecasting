@@ -1,0 +1,29 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library("ggplot2")
+library("sigmoid")
+```
+
+
+```{r}
+xx <- seq(-10, 15, by = 0.01)
+yy <- sigmoid(xx)
+
+xx <- append(xx, seq(15, 20, 0.1))
+yy <- append(yy, rep(0, 51))
+
+power_curve <- data.frame(x = xx, y = yy)
+ggplot(power_curve, mapping = aes(x, y)) +
+  geom_line(size=2, color="red") +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.title = element_text(size=18)
+  ) +
+  xlab("Wind Speed") +
+  ylab("Power Output")
+```
