@@ -58,7 +58,10 @@ def region_means(data, region_map, region_num):
             if region != -1:
                 regions[region].append(data[y][x])
 
-    return list(map(lambda r: sum(r) / len(r), regions))
+    means = []
+    for r in regions:
+        means.append(np.mean(np.abs(np.array(r))).tolist())
+    return means
 
 # Data selection
 ################
@@ -68,14 +71,16 @@ features = ["u10", "v10"]
 total_feature_num = len(features) * len(regions) # When using region means
 
 # Possible months: 1-12
-months = np.array([1])
+months = np.array([1, 2, 3, 4, 5, 6])
+#months = np.array([1])
 month_lengths = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
 
 # Data frame definitions
-timesteps = np.sum(month_lengths[months - 1]) * obs_per_day # Number of timesteps
+timesteps_months = month_lengths * obs_per_day # Timesteps for each month
+timesteps = np.sum(month_lengths[months - 1]) * obs_per_day # Total number of timesteps to be included
 datetimes = pd.date_range("{}-01-01".format(year), periods=timesteps, freq="{}H".format(timestep))
 columns = []
-for f in features:
+for f in features + ["w10"]:
     for i in range(len(regions)):
         columns.append("{}_{}".format(f, i))
 
@@ -83,7 +88,7 @@ for f in features:
 ##########
 
 df_data = []
-re_map = None
+re_map = []
 for m in months:
     print(m) # Progress tracker
     fn = 'data/ecmwf/output_{}'.format(m)
@@ -91,16 +96,22 @@ for m in months:
     # ds = nc.Dataset("./data/ecmfw/output_{}.nc4".format(m))
 
     # Compute region map
-    if re_map == None:
+    if len(re_map) == 0:
         re_map = region_map(ds["latitude"][:], ds["longitude"][:], regions)
 
+    # Create feature w10
+    w10 = [0 for t in range(timesteps_months[m - 1])]
+    for t in range(timesteps_months[m - 1]):
+        w10[t] = np.sqrt(ds["u10"][t]**2 + ds["v10"][t]**2)
+
     # Calculate timestep values (In this case regional means)
-    for t in range(timesteps):
+    for t in range(timesteps_months[m - 1]):
         row = []
         for f in features:
             row += region_means(ds[f][t], re_map, len(regions))
+        # And w10
+        row += region_means(w10[t], re_map, len(regions))
         df_data.append(row)
-
 
 # Output
 ########
@@ -114,4 +125,4 @@ df["datetime"] = datetimes
 print(df.tail(5))
 
 # Write
-df.to_feather('./data/predictors/wind_region_mean_2018-01.feather')
+df.to_feather('./data/predictors/wind_region_mean_2018-01to06.feather')

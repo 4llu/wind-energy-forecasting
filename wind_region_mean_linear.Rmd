@@ -1,5 +1,5 @@
 ---
-title: "R Notebook"
+title: "ERA Interim data"
 output: html_notebook
 ---
 
@@ -24,20 +24,26 @@ theme_set(bayesplot::theme_default())
 
 ## Start stuff
 
+Parameters
+
+```{r}
+months = 6
+```
+
 Load and preprocess predictors
 
 ```{r}
-predictors <- arrow::read_feather("data/predictors/wind_region_mean_2018-01.feather")
+predictors <- arrow::read_feather("data/predictors/wind_region_mean_2018-01to06.feather")
 N = nrow(predictors)
 # The datetimes are in UTC.02 because of Feather I guess? They are actually just UTC
-predictors
+head(predictors)
 ```
 
 Load and preprocess target
 
 ```{r}
 # Load
-energy <- read.csv("data/energy/events.csv")
+energy <- read.csv("data/energy/events_2018.csv")
 
 # Drop unnecessary columns
 energy <- subset(energy, select=-c(Lopetusaika.UTC, Alkuaika.UTC.02.00, Lopetusaika.UTC.02.00))
@@ -47,7 +53,7 @@ colnames(energy)[1] = "datetime"
 colnames(energy)[2] = "energy"
 
 # Drop timesteps not included in predictors (include month 1 and hours 00, 06, 12, 18)
-target <- energy %>% filter(month(.$datetime) == 1) %>% filter(hour(.$datetime) %% 6 == 0)
+target <- energy %>% filter(month(.$datetime) <= months) %>% filter(hour(.$datetime) %% 6 == 0)
 
 target
 ```
@@ -59,11 +65,10 @@ predictors_fa <- predictors %>%
                               transmute(
                                 U10 = rowMeans(.[,1:17]),
                                 V10 = rowMeans(.[,18:34]),
-                                datetime) %>%
-                              mutate(
-                                W10 = sqrt(U10**2 + V10**2))
+                                W10 = rowMeans(.[,34:51]),
+                                datetime)
  
-head(predictors_fa)
+predictors_fa
 ```
 
 ```{r}
@@ -72,7 +77,7 @@ data_fa["energy"] <- target$energy
 head(data_fa)
 ```
 
-Combined U and V component
+With W component
 ```{r}
 post_fa_1 <- stan_glm(energy ~ W10,
               data = data_fa,
@@ -104,17 +109,28 @@ base +
 
 Separate U and V component
 ```{r}
-post_fa_2 <- stan_glm(energy ~ U10,
+post_fa_2 <- stan_glmer(log(energy) ~ W10,
               data = data_fa,
-              family = gaussian(link = "identity"))
+              family = gaussian(link = "identity")) # lognormal
+```
+
+```{r}
+data_ra <- predictors[,34:51]
+data_ra["energy"] <- target$energy
+data_ra
 ```
 
 
+```{r}
+post_ra_1 <- stan_glm(energy ~ w10_0 + w10_1 + w10_2 + w10_3 + w10_4 + w10_5 + w10_6 + w10_7 + w10_8 + w10_9 + w10_10 + w10_11 + w10_12 + w10_13 + w10_14 + w10_15 + w10_16,
+              data = data_ra,
+              family = gaussian(link = "identity"))
+```
 
-
-
-
-
+```{r}
+post_ra_1
+```
+ 
 
 
 
