@@ -243,7 +243,7 @@ aggregate_df <- full_df %>% group_by(datetime) %>%
 aggregate_df
 ```
 
-### Forecast Timestep Shift
+### [Helper] Forecast Timestep Shift
 
 ```{r}
 # df:      dataframe to shift
@@ -269,6 +269,23 @@ full_df_s2 <- ts_shift(full_df, ts=2, regions=17)
 full_df_s2
 ```
 
+### [Helper] Training data sampler
+
+```{r}
+# df:     dataframe to sample from
+# years:  vector of years to include
+# months: vector of months to include
+# dhour:  which hours to pick (hour %% dhour == 0)
+training_data_sampler <- function(df, years, months, dhour) {
+  sample <- df %>% filter(
+                    year(datetime) %in% years &
+                    month(datetime) %in% months &
+                    hour(datetime) %% dhour == 0
+                  )
+  return(sample)
+}
+```
+
 
 ## Models
 
@@ -276,12 +293,94 @@ Models fitted with `rstanarm`.
 
 List of models:
 
-1. Full aggregate models:
+1. Full aggregate models with forecast ts = 0:
 1.1. Only w10
 1.2. Only w100
 
-### 
+### Full Aggregate with w10 Predictor and Energy Target
 
+```{r}
+post_ag_w10 <- stan_glm(energy ~ w10,
+                data = aggregate_df,
+                family = gaussian(link = "identity"))
+```
+
+```{r}
+draws_ag_w10 <- as.data.frame(post_ag_w10)
+colnames(draws_ag_w10) <- c("a", "b0", "sigma")
+
+post_ag_w10
+```
+
+```{r}
+base <- ggplot(aggregate_df, aes(x = w10, y = energy)) +
+         geom_point(size=1)
+
+base +
+  geom_abline(data = draws_ag_w10, aes(intercept = a, slope = b0),
+              color = "skyblue", size = 0.2, alpha = 0.25) +
+  geom_abline(intercept = coef(post_ag_w10)[1], slope = coef(post_ag_w10)[2],
+              color = "skyblue4", size = 1)
+```
+
+
+### Full Aggregate with w10 Predictor and Log Energy Target
+
+```{r}
+post_ag_w10_log <- stan_glm(log_energy ~ w10,
+                    data = aggregate_df,
+                    family = gaussian(link = "identity"))
+```
+
+```{r}
+draws_ag_w10_log <- as.data.frame(post_ag_w10_log)
+colnames(draws_ag_w10_log) <- c("a", "b0", "sigma")
+
+post_ag_w10_log
+```
+
+```{r}
+base_log <- ggplot(aggregate_df, aes(x = w10, y = log_energy)) +
+             geom_point(size=1)
+base_log +
+  geom_abline(data = draws_ag_w10_log, aes(intercept = a, slope = b0),
+              color = "skyblue", size = 0.2, alpha = 0.25) +
+  geom_abline(intercept = coef(post_ag_w10_log)[1], slope = coef(post_ag_w10_log)[2],
+              color = "skyblue4", size = 1)
+```
+
+
+### Regional w10 and w100 Predictors and Log Energy Target
+
+
+```{r}
+post_w10_w100_log <- stan_glmer(log_energy ~ w10 + w100 + (w10 + w100 | region) + (w10 + w100 | season) ,
+                data = full_df,
+                family = gaussian(link = "identity")
+                )
+```
+
+```{r}
+draws_w10_w100_log <- as.data.frame(post_w10_w100_log)
+#colnames(draws_w10_w100_log) <- c("a", "b0", "sigma")
+
+post_w10_w100_log
+```
+
+```{r}
+prior_summary(object = post_w10_w100_log)
+```
+
+
+```{r}
+base <- ggplot(full_df, aes(x = w10, y = log_energy)) +
+             geom_point(size=1)
+base +
+  ggtitle("w10 + w100 w/ region and log_energy 1") +
+  geom_abline(data = draws_w10_w100_log, aes(intercept = a, slope = b0),
+              color = "skyblue", size = 0.2, alpha = 0.25) +
+  geom_abline(intercept = coef(post_w10_w100_log)[1], slope = coef(post_w10_w100_log)[2],
+```    
 
 
 
