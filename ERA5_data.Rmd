@@ -9,6 +9,7 @@ By: *Aleksanteri Hämäläinen*
 
 
 **Data:**
+
 * Reanalysis data used is ERA5 data from [here](https://cds.climate.copernicus.eu)
 * Wind energy data for Finland from [Fingrid](https://www.fingrid.fi/sahkomarkkinat/sahkomarkkinainformaatio/tuulivoiman-tuotanto/)
 
@@ -287,6 +288,15 @@ training_data_sampler <- function(df, years, months, dhour) {
 ```
 
 
+
+
+
+
+
+
+
+
+
 ## Models
 
 Models fitted with `rstanarm`.
@@ -296,6 +306,430 @@ List of models:
 1. Full aggregate models with forecast ts = 0:
 1.1. Only w10
 1.2. Only w100
+
+
+
+### Regional w10 and w100 Predictors and Log Energy Target
+
+**Info**
+
+Training data: 2018, 01-02, dhour=9
+Intercept prior: `student's_t(2, 4, 1)`
+
+
+
+**Fit**
+
+```{r}
+subset_df <- training_data_sampler(full_df, c(2018), c(1, 2), 9)
+
+post_w10_w100_log <- stan_glmer(log_energy ~ w10 + w100 + (w10 + w100 | region),
+                      data = subset_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.99
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_w10_w100_log, file = "post_w10_w100_log.rda")
+# Short summary
+post_w10_w100_log
+```
+
+```{r}
+load("post_w10_w100_log.rda")
+```
+
+
+
+
+**Divergence plot**
+
+```{r}
+pairs(post_w10_w100_log, pars = c("(Intercept)", "w10", "w100"))
+```
+
+
+
+**Prior Summary**
+
+```{r}
+prior_summary(object = post_w10_w100_log)
+```
+
+
+
+**Population intercept plot**
+
+```{r}
+draws_w10_w100_log <- as.data.frame(post_w10_w100_log)
+
+ggplot(data = draws_w10_w100_log) +
+  geom_histogram(aes(x = `(Intercept)`), fill = "steelblue", color = "black")
+```
+
+**Coefficient plots**
+
+```{r}
+posterior <- as.matrix(post_w10_w100_log)
+mcmc_areas(posterior,
+           pars = c("w10", "w100"),
+           prob = 0.8)
+```
+
+
+
+**Posterior predictions**
+
+```{r}
+nd <- tail(full_df, n = 17) %>% select(w10, w100, region)
+nd_targets <- tail(full_df, n = 1) %>% select(energy)
+
+post_predict <- posterior_predict(post_w10_w100_log, nd, draws = 500)
+```
+
+
+
+**Prediction error distribution**
+
+```{r}
+post_predict <- as_tibble(post_predict) %>%
+  mutate(
+    # Real target
+    R = nd_targets$energy,
+    # Prediction means (exp to get MWh)
+    E = rowMeans(exp(.[,1:17])),
+    .before = `1`) %>% 
+  mutate(error = R - E, .before = `1`)
+post_predict
+```
+
+```{r}
+mcmc_areas(post_predict,
+           pars = c("error"),
+           prob = 0.5) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750))
+  xlab("Error [MWh]")
+```
+
+
+
+**Full coefficient summary**
+
+```{r}
+summary(post_w10_w100_log)
+```
+
+
+
+### Regional w10 predictor and log energy target
+
+**Info**
+
+Training data: 2018, 01-03, dhour=12
+
+
+
+**Fit**
+
+```{r}
+subset_df <- training_data_sampler(full_df, c(2018), c(1, 2), 9)
+
+post_w10_log <- stan_glmer(log_energy ~ w10 + (w10 | region),
+                data = subset_df,
+                family = gaussian(link = "identity"),
+                prior_intercept = student_t(2, 4, 1),
+                adapt_delta = 0.99
+                )
+
+save(post_w10_log, file = "post_w10_log.rda")
+
+# Short summary
+post_w10_log
+```
+
+```{r}
+load("post_w10_log.rda")
+```
+
+```{r}
+pairs(post_w10_log, pars = c("(Intercept)", "log-posterior"))
+```
+
+
+
+**Prior Summary**
+
+```{r}
+prior_summary(object = post_w10_log)
+```
+
+
+
+**Population intercept plot**
+
+```{r}
+draws_w10_log <- as.data.frame(post_w10_log)
+
+ggplot(data = draws_w10_log) +
+  geom_histogram(aes(x = `(Intercept)`, y = after_stat(density)), fill = "steelblue", color = "black") +
+  xlim(3.8, 4.8)
+```
+
+**Coefficient plots**
+
+```{r}
+posterior <- as.matrix(post_w10_log)
+mcmc_areas(posterior,
+           pars = c("w10"),
+           prob = 0.8)
+```
+
+
+
+**Posterior predictions**
+
+```{r}
+nd <- tail(full_df, n = 17) %>% select(w10, region)
+nd_targets <- tail(full_df, n = 1) %>% select(energy)
+
+pp_w10_log <- posterior_predict(post_w10_log, nd, draws = 500)
+```
+
+
+
+**Prediction error distribution**
+
+```{r}
+pp_w10_log <- as_tibble(pp_w10_log) %>%
+  mutate(
+    # Real target
+    real_target = nd_targets$energy,
+    # Prediction means (exp to get MWh)
+    predicted_target = rowMeans(exp(.[,1:17])),
+    .before = `1`) %>% 
+  mutate(
+    error = real_target - predicted_target,
+    .after = predicted_target)
+
+pp_w10_log
+```
+
+```{r}
+mcmc_areas(pp_w10_log,
+           pars = c("error"),
+           prob = 0.8) +
+  xlab("Error [MWh]")
+```
+
+
+
+**Full coefficient summary**
+
+```{r}
+summary(post_w10_log)
+```
+
+
+
+
+
+
+
+
+### Regional w10 and w100 Predictors, Log Energy Target and 2h timeshift
+
+**Info**
+
+Training data: 2018, 01-02, dhour=9
+Intercept prior: `student's_t(2, 4, 1)`
+Time shift: 2h
+
+
+**Fit**
+
+```{r}
+
+ts2_df <- ts_shift(
+  training_data_sampler(full_df, c(2018), c(1, 2), 9),
+  ts=2,
+  regions=17)
+
+post_w10_w100_log_ts2 <- stan_glmer(log_energy ~ w10 + w100 + (w10 + w100 | region),
+                      data = ts2_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.999
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_w10_w100_log_ts2, file = "post_w10_w100_log_ts2.rda")
+# Short summary
+post_w10_w100_log_ts2
+```
+
+
+
+**Prior Summary**
+
+```{r}
+prior_summary(object = post_w10_w100_log_ts2)
+```
+
+
+
+**Population intercept plot**
+
+```{r}
+draws_w10_w100_log_ts2 <- as.data.frame(post_w10_w100_log_ts2)
+
+ggplot(data = draws_w10_w100_log_ts2) +
+  geom_histogram(aes(x = `(Intercept)`), fill = "steelblue", color = "black")
+```
+
+**Coefficient plots**
+
+```{r}
+posterior <- as.matrix(post_w10_w100_log_ts2)
+mcmc_areas(posterior,
+           pars = c("w10", "w100"),
+           prob = 0.8)
+```
+
+
+
+**Posterior predictions**
+
+```{r}
+nd <- tail(ts2_df, n = 17) %>% select(w10, w100, region)
+nd_targets <- tail(ts2_df, n = 1) %>% select(energy)
+
+pp_w10_w100_log_ts2 <- posterior_predict(post_w10_w100_log_ts2, nd)
+```
+
+
+
+**Prediction error distribution**
+
+```{r}
+pp_w10_w100_log_ts2 <- as_tibble(pp_w10_w100_log_ts2) %>%
+  mutate(
+    # Real target
+    real_target = nd_targets$energy,
+    # Prediction means (exp to get MWh)
+    predicted_target = rowMeans(exp(.[,1:17])),
+    .before = `1`) %>% 
+  mutate(
+    error = real_target - predicted_target,
+    .after = predicted_target)
+
+pp_w10_w100_log_ts2
+```
+
+```{r}
+mcmc_areas(pp_w10_w100_log_ts2,
+           pars = c("error"),
+           prob = 0.8) +
+  xlab("Error [MWh]")
+```
+
+
+
+**Full coefficient summary**
+
+```{r}
+summary(post_w10_w100_log_ts2)
+```
+
+
+
+### Regional w10, w100 and t2m Predictors, Log Energy Target and 2h timeshift
+
+**Info**
+
+Training data: 2018, 01-02 + 11, dhour=6
+Intercept prior: `student's_t(2, 4, 1)`
+Time shift: 2h
+
+
+**Fit**
+
+```{r}
+ts2_df <- ts_shift(
+  training_data_sampler(full_df, c(2018), c(11, 1, 2), 6),
+  ts=2,
+  regions=17)
+
+post_w10_w100_t2m_log_ts2 <- stan_glmer(log_energy ~ w10 + w100 + t2m + (w10 + w100 + t2m | region),
+                      data = ts2_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.999
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_w10_w100_t2m_log_ts2, file = "post_w10_w100_t2m_log_ts2")
+# Short summary
+post_w10_w100_t2m_log_ts2
+```
+
+
+
+
+```{r}
+ts2_df <- ts_shift(
+  training_data_sampler(full_df, c(2018), c(11, 1, 2), 6),
+  ts=2,
+  regions=17)
+
+post_w10_w100_t2m_sp_log_ts2 <- stan_glmer(log_energy ~ w10 + w100 + t2m + sp + (w10 + w100 + t2m + sp | region),
+                      data = ts2_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.999
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_w10_w100_t2m_sp_log_ts2, file = "post_w10_w100_t2m_sp_log_ts2.rda")
+# Short summary
+post_w10_w100_t2m_sp_log_ts2
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Full Aggregate with w10 Predictor and Energy Target
 
@@ -341,8 +775,21 @@ post_ag_w10_log
 
 ```{r}
 base_log <- ggplot(aggregate_df, aes(x = w10, y = log_energy)) +
-             geom_point(size=1)
+              geom_point(size=1) +
+              scale_y_continuous(trans = "log")
 base_log +
+#  scale_y_continuous(trans = "log") +
+  geom_abline(data = draws_ag_w10_log, aes(intercept = a, slope = b0),
+              color = "skyblue", size = 0.2, alpha = 0.25) +
+  geom_abline(intercept = coef(post_ag_w10_log)[1], slope = coef(post_ag_w10_log)[2],
+              color = "skyblue4", size = 1)
+```
+
+```{r}
+base_log <- ggplot(aggregate_df, aes(x = w10, y = log_energy)) +
+              geom_point(size=1)
+base_log +
+#  scale_y_continuous(trans = "log") +
   geom_abline(data = draws_ag_w10_log, aes(intercept = a, slope = b0),
               color = "skyblue", size = 0.2, alpha = 0.25) +
   geom_abline(intercept = coef(post_ag_w10_log)[1], slope = coef(post_ag_w10_log)[2],
@@ -350,37 +797,8 @@ base_log +
 ```
 
 
-### Regional w10 and w100 Predictors and Log Energy Target
 
 
-```{r}
-post_w10_w100_log <- stan_glmer(log_energy ~ w10 + w100 + (w10 + w100 | region) + (w10 + w100 | season) ,
-                data = full_df,
-                family = gaussian(link = "identity")
-                )
-```
-
-```{r}
-draws_w10_w100_log <- as.data.frame(post_w10_w100_log)
-#colnames(draws_w10_w100_log) <- c("a", "b0", "sigma")
-
-post_w10_w100_log
-```
-
-```{r}
-prior_summary(object = post_w10_w100_log)
-```
-
-
-```{r}
-base <- ggplot(full_df, aes(x = w10, y = log_energy)) +
-             geom_point(size=1)
-base +
-  ggtitle("w10 + w100 w/ region and log_energy 1") +
-  geom_abline(data = draws_w10_w100_log, aes(intercept = a, slope = b0),
-              color = "skyblue", size = 0.2, alpha = 0.25) +
-  geom_abline(intercept = coef(post_w10_w100_log)[1], slope = coef(post_w10_w100_log)[2],
-```    
 
 
 
