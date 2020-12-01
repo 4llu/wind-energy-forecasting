@@ -58,11 +58,9 @@ model_error <- function(post, test_sample) {
     predicted <- append(predicted, rowMeans(exp(post_pred[,((i-1)*17+1):(i*17)])))
   }
   
-  print(head(predicted))
-  
   real <- rep(test_sample[seq(1, nrow(test_sample), by = 17), 2]$energy, each = DRAWS)
   
-  errors <- tibble(predicted = predicted, real = real) %>% mutate(error = real - predicted)
+  errors <- tibble(predicted = predicted, real = real) %>% mutate(error = predicted - real)
   return(errors)
 }
 ```
