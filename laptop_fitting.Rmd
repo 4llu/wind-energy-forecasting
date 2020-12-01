@@ -1,0 +1,429 @@
+---
+title: "ERA5 Data"
+output: html_notebook
+---
+
+# Baysian GLMM Wind Energy Forecasting
+
+By: *Aleksanteri Hämäläinen*
+
+
+**Data:**
+
+* Reanalysis data used is ERA5 data from [here](https://cds.climate.copernicus.eu)
+* Wind energy data for Finland from [Fingrid](https://www.fingrid.fi/sahkomarkkinat/sahkomarkkinainformaatio/tuulivoiman-tuotanto/)
+
+## Setup
+
+```{r}
+library(ncdf4)
+library(ncdf4.helpers)
+library(lubridate)
+library(tidyverse)
+library(rstanarm)
+library(bayesplot)
+```
+
+
+### Library options:
+
+```{r}
+# rstanarm options
+options(mc.cores = parallel::detectCores())
+# Bayesplot
+theme_set(bayesplot::theme_default())
+```
+
+
+### Target
+
+Load and format target
+
+```{r}
+# Load
+energy_2018 <- read_csv("data/energy/events_2018.csv")
+energy_2019 <- read_csv("data/energy/events_2019.csv")
+
+# Combine
+target <- bind_rows(energy_2018, energy_2019) %>%
+  # Drop unnecessary columns and simplify column names
+  select(datetime="Alkuaika UTC", energy="Tuulivoimatuotanto - tuntienergiatieto") %>%
+  mutate(
+    # This is to fix some times being 5min early, e.g. 22:55 instead of 23:00
+    datetime = force_tz(ceiling_date(datetime, unit="hour"), tz="UTC"),
+    # Add log(energy) column
+    log_energy = log(energy)
+  ) %>% 
+  distinct(datetime, .keep_all = TRUE) # Some timesteps have both 22:55 and 23:00 with slightly different energy values
+
+target
+```
+
+
+Missing timesteps in energy data
+
+```{r}
+start <- ymd_hms("2017-12-31 22:00:00")
+ts <- c(start)
+for (i in 1:17522) {
+  ts <- append(ts, tail(ts, n=1) + dminutes(60))
+}
+
+which(!(ts[1:17519] %in% target$datetime))
+```
+
+
+### Predictors
+
+Load data and extract features
+
+```{r}
+data_filepath <- paste0("data/ecmwf/", "era5_2018-2019.nc")
+data_output <- nc_open(data_filepath)
+
+print(data_output)
+
+feature_num <- 8 # Disregarding lat, lon and time and adding w10 and w100
+u100 <- ncvar_get(data_output, varid="u100")
+v100 <- ncvar_get(data_output, varid="v100")
+u10 <- ncvar_get(data_output, varid="u10")
+v10 <- ncvar_get(data_output, varid="v10")
+t2m <- ncvar_get(data_output, varid="t2m")
+sp <- ncvar_get(data_output, varid="sp")
+lon <- ncvar_get(data_output, varid="longitude")
+lat <- ncvar_get(data_output, varid="latitude")
+time <- ncvar_get(data_output, varid="time")
+
+nc_close(data_output)
+```
+
+Reanalysis data dimension check
+
+```{r}
+dim(u100)
+```
+
+
+Create w10 and w100
+
+```{r}
+w10 <- array(dim = c(length(lon), length(lat), length(time)))
+w100 <- array(dim = c(length(lon), length(lat), length(time)))
+for (t in 1:length(time)) {
+  w10[,,t] <- sqrt(u10[,,t]**2 + v10[,,t]**2)
+  w100[,,t] <- sqrt(u100[,,t]**2 + v100[,,t]**2)
+}
+```
+
+
+Create region masks
+
+```{r}
+# Regions (17)
+region_num <- 17
+regions <- rbind(
+    c(19.0, 21.2, 60.6, 59.5), # Ahvenanmaa
+    c(21.2, 23.5, 61.0, 59.5), # Varsinais-Suomi
+    c(23.5, 26.2, 60.7, 59.5), # Uusimaa
+    c(26.2, 27.2, 61.3, 59.0), # Kymenlaakso
+    c(27.2, 30.0, 61.7, 59.0), # Etelä-Karjala
+    c(20.0, 22.7, 61.3, 60.0), # Satakunta
+    c(23.5, 25.0, 61.2, 60.7), # Kanta-Häme
+    c(25.0, 26.2, 61.6, 60.7), # Päijät-Häme
+    c(22.7, 25.0, 62.4, 61.0), # Pirkanmaa
+    c(26.2, 29.0, 62.4, 61.3), # Etelä-Savo
+    c(24.5, 26.5, 63.5, 61.6), # Keskisuomi
+    c(20.0, 24.5, 64.0, 61.0), # Etelä + Keski + Pohjanmaa
+    c(28.4, 32.0, 63.9, 61.7), # Pohjois-Karjala
+    c(26.5, 28.4, 64.0, 62.4), # Pohjois-Savo
+    c(27.2, 30.5, 65.3, 63.9), # Kainuu
+    c(23.4, 30.0, 66.0, 63.5), # Pohjois-Pohjanmaa
+    c(22.7, 30.5, 69.5, 66.0)  # Lappi
+)
+
+# Region map base
+region_map <- replicate(length(lat), numeric(length(lon))) - 1
+
+# Fit
+for (y in 1:length(lat)) {
+  for (x in 1:length(lon)) {
+    for (i in 1:length(regions[,1])) {
+      r <- regions[i,]
+      if (lon[x] >= r[1] && lon[x] <= r[2] && lat[y] <= r[3] && lat[y] >= r[4]) {
+        region_map[x, y] <- i
+        break
+      }
+    }
+  }
+}
+```
+
+```{r}
+region_masks <- array(dim = c(length(lon), length(lat), length(regions)))
+for (r in 1:length(regions)) {
+  region_masks[,,r] <- region_map == r
+}
+```
+
+
+Calculate region averages
+
+```{r}
+region_means <- array(dim = c(length(time) * region_num, feature_num + 2)) # +2 for datetime and region column
+colnames(region_means) <- c("datetime", "u10", "v10", "w10", "u100", "v100", "w100", "t2m", "sp", "region")
+for (t in 1:length(time)) {
+  for (r in 1:region_num) {
+    r_mask <- region_masks[,,r]
+    region_means[(t-1) * region_num + r,] <- c(
+      with_tz(ts[t + 2], tz="UTC"), # Datetime
+      mean(u10[,,t][r_mask]),
+      mean(v10[,,t][r_mask]),
+      mean(w10[,,t][r_mask]),
+      mean(u100[,,t][r_mask]),
+      mean(v100[,,t][r_mask]),
+      mean(w100[,,t][r_mask]),
+      mean(t2m[,,t][r_mask]),
+      mean(sp[,,t][r_mask]),
+      r # Region column
+    )
+  }
+}
+head(region_means, n=20)
+```
+```{r}
+# Helper to to map months to seasons
+seasons <- rbind(
+              c(12, 1, 2), # 1, winter
+              c(3, 4, 5),  # 2, spring
+              c(6, 7, 8),  # 3, summer
+              c(9, 10, 11) # 4, fall
+            )
+
+season_map <- function(m) {
+  for (s in 1:4) {
+    if (m %in% seasons[s,]) {
+      return(s)
+    }
+  }  
+  return(-1)
+}
+
+predictors <- as_tibble(region_means) %>%
+                    # Change datetime format
+                    mutate(datetime = as_datetime(datetime)) %>% 
+                    # Add season
+                    mutate(season = map_int(month(datetime), season_map), .before = "u10")
+predictors
+```
+
+
+### Combine
+
+```{r}
+full_df <- inner_join(target, predictors, by = "datetime")
+full_df
+```
+
+### Full aggregate DF
+
+```{r}
+aggregate_df <- full_df %>% group_by(datetime) %>% 
+                  mutate(
+                    u10 = mean(u10),
+                    v10 = mean(v10),
+                    w10 = mean(w10),
+                    u100 = mean(u100),
+                    v100 = mean(v100),
+                    w100 = mean(w100),
+                    t2m = mean(t2m),
+                    sp = mean(sp),
+                    region = NULL
+                  ) %>% 
+                  distinct() %>% 
+                  ungroup()
+aggregate_df
+```
+
+### [Helper] Forecast Timestep Shift
+
+```{r}
+# df:      dataframe to shift
+# ts:      timestep to shift in hours
+# regions: number of regions
+ts_shift <- function (df, ts, regions) {
+  df_shift <- df %>% mutate(
+                      energy = lead(df$energy, n = ts * regions),
+                      log_energy = lead(df$log_energy, n = ts * regions)
+                    ) %>% 
+                    drop_na()
+  return(df_shift)
+}
+```
+
+```{r}
+ag_df_s2 <- ts_shift(aggregate_df, ts=2, regions=1)
+ag_df_s2
+```
+
+```{r}
+full_df_s2 <- ts_shift(full_df, ts=2, regions=17)
+
+full_df_s6 <- ts_shift(full_df, ts=6, regions=17)
+
+full_df_s6
+```
+
+### [Helper] Training data sampler
+
+```{r}
+# df:     dataframe to sample from
+# years:  vector of years to include
+# months: vector of months to include
+# dhour:  which hours to pick (hour %% dhour == 0)
+training_data_sampler <- function(df, years, months, dhour) {
+  sample <- df %>% filter(
+                    year(datetime) %in% years &
+                    month(datetime) %in% months &
+                    hour(datetime) %% dhour == 0
+                  )
+  return(sample)
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+## Models
+
+Models fitted with `rstanarm`.
+
+List of models:
+
+1. Full aggregate models with forecast ts = 0:
+1.1. Only w10
+1.2. Only w100
+
+
+
+### Regional u10 and v10 Predictors, Log Energy Target and 2h Timeshift
+
+**Info**
+
+Training data: 2018, 01-02, dhour=9
+Intercept prior: `student's_t(2, 4, 1)`
+Timeshift: 2h
+
+
+
+**Fit**
+
+```{r}
+subset_df <- training_data_sampler(full_df_s2, c(2018), c(11, 1, 2), 6)
+
+post_u10_v10_log_ts2 <- stan_glmer(log_energy ~ u10 + v10 + (u10 + v10 | region),
+                      data = subset_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.99
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_u10_v10_log_ts2, file = "post_u10_v10_log_ts2.rda")
+# Short summary
+post_u10_v10_log_ts2
+```
+
+### Regional w10 and w100 Predictors, Log Energy Target and 2h Timeshift
+
+**Info**
+
+Training data: 2018, 01-02, dhour=9
+Intercept prior: `student's_t(2, 4, 1)`
+Timeshift: 2h
+
+
+**Fit**
+
+```{r}
+subset_df <- training_data_sampler(full_df_s2, c(2018), c(11, 1, 2), 6)
+
+post_u100_v100_log_ts2 <- stan_glmer(log_energy ~ u100 + v100 + (u100 + v100 | region),
+                      data = subset_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.99
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_u100_v100_log_ts2, file = "post_u100_v100_log_ts2.rda")
+# Short summary
+post_u100_v100_log_ts2
+```
+
+
+
+
+### Regional u10 and v10 Predictors, Log Energy Target and 6h Timeshift
+
+**Info**
+
+Training data: 2018, 01-02, dhour=9
+Intercept prior: `student's_t(2, 4, 1)`
+Timeshift: 6h
+
+
+
+**Fit**
+
+```{r}
+subset_df <- training_data_sampler(full_df_s6, c(2018), c(11, 1, 2), 6)
+
+post_u10_v10_log_ts6 <- stan_glmer(log_energy ~ u10 + v10 + (u10 + v10 | region),
+                      data = subset_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.99
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_u10_v10_log_ts6, file = "post_u10_v10_log_ts6.rda")
+# Short summary
+post_u10_v10_log_ts6
+```
+
+
+
+
+### Regional u100 and v100 Predictors, Log Energy Target and 6h Timeshift
+
+**Info**
+
+Training data: 2018, 01-02, dhour=9
+Intercept prior: `student's_t(2, 4, 1)`
+Timeshift: 6h
+
+
+**Fit**
+
+```{r}
+subset_df <- training_data_sampler(full_df_s6, c(2018), c(11, 1, 2), 6)
+
+post_u100_v100_log_ts6 <- stan_glmer(log_energy ~ u100 + v100 + (u100 + v100 | region),
+                      data = subset_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.99
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_u100_v100_log_ts6, file = "post_u100_v100_log_ts6.rda")
+# Short summary
+post_u100_v100_log_ts6
+```
