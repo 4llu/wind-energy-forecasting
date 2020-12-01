@@ -221,6 +221,7 @@ predictors
 
 ```{r}
 full_df <- inner_join(target, predictors, by = "datetime")
+
 full_df
 ```
 
@@ -266,8 +267,11 @@ ag_df_s2
 ```
 
 ```{r}
-full_df_s2 <- ts_shift(full_df, ts=2, regions=17)
-full_df_s2
+full_df_ts2 <- ts_shift(full_df, ts=2, regions=17)
+full_df_ts6 <- ts_shift(full_df, ts=6, regions=17)
+full_df_ts24 <- ts_shift(full_df, ts=24, regions=17)
+
+save(full_df, full_df_ts2, full_df_ts6, full_df_ts24, file = "full_df.rda")
 ```
 
 ### [Helper] Training data sampler
@@ -668,13 +672,63 @@ post_w10_w100_t2m_log_ts2 <- stan_glmer(log_energy ~ w10 + w100 + t2m + (w10 + w
                     )
 
 # Save the fit so it doesn't have to be run again every time RStudio dies
-save(post_w10_w100_t2m_log_ts2, file = "post_w10_w100_t2m_log_ts2")
+save(post_w10_w100_t2m_log_ts2, file = "post_w10_w100_t2m_log_ts2.rda")
 # Short summary
 post_w10_w100_t2m_log_ts2
 ```
 
 
+```{r}
+mcmc_areas(post_w10_w100_t2m_log_ts2,
+           pars = c("w10", "w100"),
+           prob = 0.8)
+```
 
+### Regional w10, w100 and sp Predictors, Log Energy Target and 2h timeshift [summer]
+
+**Info**
+
+Training data: 2018, 06-08, dhour=6
+Intercept prior: `student's_t(2, 4, 1)`
+Time shift: 2h
+
+
+**Fit**
+
+```{r}
+ts2_df_summer <- ts_shift(
+  training_data_sampler(full_df, c(2018), c(6, 7, 8), 6),
+  ts=2,
+  regions=17)
+
+post_w10_w100_sp_log_ts2_summer <- stan_glmer(log_energy ~ w10 + w100 + sp + (w10 + w100 + sp | region),
+                      data = ts2_df_summer,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1),
+                      adapt_delta = 0.999
+                    )
+
+# Save the fit so it doesn't have to be run again every time RStudio dies
+save(post_w10_w100_sp_log_ts2_summer, file = "post_w10_w100_sp_log_ts2_summer.rda")
+# Short summary
+post_w10_w100_sp_log_ts2_summer
+```
+
+```{r}
+mcmc_areas(post_w10_w100_sp_log_ts2_summer,
+           pars = c("w10", "w100"),
+           prob = 0.8)
+```
+
+```{r}
+mcmc_areas(post_w10_w100_sp_log_ts2_summer,
+           pars = c("sp"),
+           prob = 0.8)
+```
+
+
+
+## w10, w100, t2m, sp, log energy, and timeshift 2
 
 ```{r}
 ts2_df <- ts_shift(
@@ -695,8 +749,23 @@ save(post_w10_w100_t2m_sp_log_ts2, file = "post_w10_w100_t2m_sp_log_ts2.rda")
 post_w10_w100_t2m_sp_log_ts2
 ```
 
+```{r}
+mcmc_areas(post_w10_w100_t2m_sp_log_ts2,
+           pars = c("sp"),
+           prob = 0.8)
+```
 
+```{r}
+mcmc_areas(post_w10_w100_t2m_sp_log_ts2,
+           pars = c("t2m"),
+           prob = 0.8)
+```
 
+```{r}
+mcmc_areas(post_w10_w100_t2m_sp_log_ts2,
+           pars = c("w10", "w100"),
+           prob = 0.8)
+```
 
 
 
@@ -750,11 +819,11 @@ post_ag_w10
 base <- ggplot(aggregate_df, aes(x = w10, y = energy)) +
          geom_point(size=1)
 
-base +
-  geom_abline(data = draws_ag_w10, aes(intercept = a, slope = b0),
-              color = "skyblue", size = 0.2, alpha = 0.25) +
-  geom_abline(intercept = coef(post_ag_w10)[1], slope = coef(post_ag_w10)[2],
-              color = "skyblue4", size = 1)
+base
+  # geom_abline(data = draws_ag_w10, aes(intercept = a, slope = b0),
+              # color = "skyblue", size = 0.2, alpha = 0.25) +
+  # geom_abline(intercept = coef(post_ag_w10)[1], slope = coef(post_ag_w10)[2],
+              # color = "skyblue4", size = 1)
 ```
 
 

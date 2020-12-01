@@ -1,0 +1,106 @@
+---
+title: "Model Analysis"
+output: html_notebook
+---
+
+## Setup
+
+```{r}
+library(lubridate)
+library(tidyverse)
+library(rstanarm)
+library(bayesplot)
+```
+
+```{r}
+load("full_df.rda")
+full_df_ts2
+```
+
+```{r}
+load("post_w10_w100_log.rda")
+load("post_w10_w100_log_ts2.rda")
+post_w10_w100_log
+```
+
+Data sampler
+
+```{r}
+# df:     dataframe to sample from
+# years:  vector of years to include
+# months: vector of months to include
+# dhour:  which hours to pick (hour %% dhour == 0)
+data_sampler <- function(df, years, months, ddays, dhour) {
+  sample <- df %>% filter(
+                    year(datetime) %in% years &
+                    month(datetime) %in% months &
+                    day(datetime) %% ddays == 0 &
+                    hour(datetime) %% dhour == 0
+                  )
+  return(sample)
+}
+```
+
+```{r}
+data_sampler(full_df, c(2019), c(12), 3, 22)
+```
+
+
+Error calculator
+```{r}
+model_error <- function(post, test_sample) {
+  DRAWS <- 1000
+  post_pred <- as_tibble(posterior_predict(post, select(test_sample, w10, w100, region), draws = DRAWS))
+  num_data_points <- ncol(post_pred) / 17
+  
+  predicted = c()
+  for (i in 1:num_data_points) {
+    predicted <- append(predicted, rowMeans(exp(post_pred[,((i-1)*17+1):(i*17)])))
+  }
+  
+  print(head(predicted))
+  
+  real <- rep(test_sample[seq(1, nrow(test_sample), by = 17), 2]$energy, each = DRAWS)
+  
+  errors <- tibble(predicted = predicted, real = real) %>% mutate(error = real - predicted)
+  return(errors)
+}
+```
+
+```{r}
+rowMeans(exp(post_pred[,((1-1)*17+1):(1*17)]))
+```
+
+
+
+```{r}
+error_w10_w100_log_ts2 <- model_error(
+                            post_w10_w100_log,
+                            data_sampler(full_df, c(2019), c(12), 3, 22))
+
+error_w10_w100_log_ts2
+```
+
+```{r}
+mcmc_areas(error_w10_w100_log_ts2,
+           pars = c("error"),
+           prob = 0.5,
+           prob_outer = 0.999) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
+  xlim(-2000, 2000) +
+  xlab("Error [MWh]")
+```
+
+```{r}
+min(error_w10_w100_log_ts2$predicted)
+```
+
+
+
+## w10, log target
+
+## w10, log target, and ts 2
+
+## w10, log target, and ts 6
+
+## w10, log target, and ts 24

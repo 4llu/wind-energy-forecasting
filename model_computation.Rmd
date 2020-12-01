@@ -1,0 +1,215 @@
+---
+title: "Model analysis"
+output: html_notebook
+---
+
+```{r}
+library(rstanarm)
+```
+
+```{r}
+# rstanarm options
+options(mc.cores = parallel::detectCores())
+```
+
+
+```{r}
+load("full_df.rda")
+full_df
+```
+## Training data
+
+```{r}
+training_df_winter <- training_data_sampler(full_df, c(2018), c(11, 1, 2), 6)
+training_df_winter_ts2 <- training_data_sampler(full_df_ts2, c(2018), c(11, 1, 2), 6)
+training_df_winter_ts6 <- training_data_sampler(full_df_ts6, c(2018), c(11, 1, 2), 6)
+training_df_winter_ts24 <- training_data_sampler(full_df_ts24, c(2018), c(11, 1, 2), 6)
+```
+
+
+## w10, log target
+
+```{r}
+post_w10_log <- stan_glmer(log_energy ~ w10 + (w10 | region),
+                      data = training_df_winter,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w10_log, file = "post_w10_log.rda")
+# Short summary
+post_w10_log
+```
+
+
+
+## w10, log target, ts 2
+
+```{r}
+post_w10_log_ts2 <- stan_glmer(log_energy ~ w10 + (w10 | region),
+                      data = training_df_winter_ts2,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w10_log_ts2, file = "post_w10_log_ts2.rda")
+# Short summary
+post_w10_log_ts2
+```
+
+
+
+## w10, log target, ts 6
+
+```{r}
+post_w10_log_ts6 <- stan_glmer(log_energy ~ w10 + (w10 | region),
+                      data = training_df_winter_ts6,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w10_log_ts6, file = "post_w10_log_ts6.rda")
+# Short summary
+post_w10_log_ts6
+```
+
+
+
+## w10, log target, ts 24
+
+```{r}
+post_w10_log_ts24 <- stan_glmer(log_energy ~ w10 + (w10 | region),
+                      data = training_df_winter_ts24,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w10_log_ts24, file = "post_w10_log_ts24.rda")
+# Short summary
+post_w10_log_ts24
+```
+
+
+
+## w100, log target
+
+```{r}
+post_w100_log <- stan_glmer(log_energy ~ w100 + (w100 | region),
+                      data = training_df_winter,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w100_log, file = "post_w100_log.rda")
+# Short summary
+post_w100_log
+```
+
+
+
+## w100, log target, ts 2
+
+```{r}
+post_w100_log_ts2 <- stan_glmer(log_energy ~ w100 + (w100 | region),
+                      data = training_df_winter_ts2,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w100_log_ts2, file = "post_w100_log_ts2.rda")
+# Short summary
+post_w100_log_ts2
+```
+
+
+
+## w100, log target, ts 6
+
+```{r}
+post_w100_log_ts6 <- stan_glmer(log_energy ~ w100 + (w100 | region),
+                      data = training_df_winter_ts6,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w100_log_ts6, file = "post_w100_log_ts6.rda")
+# Short summary
+post_w100_log_ts6
+```
+
+
+
+## w100, log target, ts 24
+
+```{r}
+post_w100_log_ts24 <- stan_glmer(log_energy ~ w100 + (w100 | region),
+                      data = training_df_winter_ts24,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_w100_log_ts24, file = "post_w100_log_ts24.rda")
+# Short summary
+post_w100_log_ts24
+```
+
+
+## u10 + v10 + w10, log target
+
+```{r}
+post_u10_v10_w10_log <- stan_glmer(log_energy ~ u10 + v10 + w10 + (u10 + v10 + w10 | region),
+                      data = training_df_winter,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_u10_v10_w10_log, file = "post_u10_v10_w10_log.rda")
+# Short summary
+post_u10_v10_w10_log
+```
+
+
+## u100 + v100 + w100, log target
+
+```{r}
+post_u100_v100_w100_log <- stan_glmer(log_energy ~ u100 + v100 + w100 + (u100 + v100 + w100 | region),
+                      data = training_df_winter,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = student_t(df = 2, loc = 4, scale = 1)
+                    )
+
+# Save the fit
+save(post_u100_v100_w100_log, file = "post_u100_v100_w100_log.rda")
+# Short summary
+post_u100_v100_w100_log
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
