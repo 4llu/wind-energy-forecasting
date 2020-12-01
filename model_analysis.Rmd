@@ -50,7 +50,7 @@ Error calculator
 ```{r}
 model_error <- function(post, test_sample) {
   DRAWS <- 1000
-  post_pred <- as_tibble(posterior_predict(post, select(test_sample, w10, w100, region), draws = DRAWS))
+  post_pred <- as_tibble(posterior_predict(post, test_sample, draws = DRAWS))
   num_data_points <- ncol(post_pred) / 17
   
   predicted = c()
