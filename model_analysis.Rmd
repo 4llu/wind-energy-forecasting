@@ -17,11 +17,8 @@ load("full_df.rda")
 full_df_ts2
 ```
 
-```{r}
-load("post_w10_w100_log.rda")
-load("post_w10_w100_log_ts2.rda")
-post_w10_w100_log
-```
+
+## Helpers
 
 Data sampler
 
@@ -40,11 +37,6 @@ data_sampler <- function(df, years, months, ddays, dhour) {
   return(sample)
 }
 ```
-
-```{r}
-data_sampler(full_df, c(2019), c(12), 3, 22)
-```
-
 
 Error calculator
 ```{r}
@@ -65,40 +57,251 @@ model_error <- function(post, test_sample) {
 }
 ```
 
+
+## Data plotting
+
 ```{r}
-rowMeans(exp(post_pred[,((1-1)*17+1):(1*17)]))
+ggplot(
+    data = data_sampler(full_df, c(2019), c(12), 3, 22),
+    aes(x = w10, y = energy)
+  ) +
+  geom_point()
 ```
 
 
 
+
+## w10, log target, ts=0
+
 ```{r}
-error_w10_w100_log_ts2 <- model_error(
+load("post_w10_log.rda")
+post_w10_log
+```
+
+**Error**
+
+Calculate
+```{r}
+error_w10_log <- model_error(
+                            post_w10_log,
+                            data_sampler(full_df, c(2019), c(12), 3, 22))
+```
+
+
+
+Some stats
+```{r}
+summary(error_w10_log)
+```
+
+
+Plot
+```{r}
+mcmc_areas(error_w10_log,
+           pars = c("error"),
+           prob = 0.5,
+           prob_outer = 0.999) +
+  xlim(-2000, 2000) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
+  xlab("Error [MWh]")
+```
+
+
+__________________________________________________________________________________________________________
+
+
+## w10, log target, ts=2
+
+```{r}
+load("post_w10_log_ts2.rda")
+post_w10_log_ts2
+```
+
+
+**Error**
+
+Calculate
+```{r}
+error_w10_log_ts2 <- model_error(
+                            post_w10_log_ts2,
+                            data_sampler(full_df_ts2, c(2019), c(12), 3, 22))
+```
+
+
+
+Some stats
+```{r}
+summary(error_w10_log_ts2)
+```
+
+
+Plot
+```{r}
+mcmc_areas(error_w10_log_ts2,
+           pars = c("error"),
+           prob = 0.5,
+           prob_outer = 0.999) +
+  xlim(-2000, 2000) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
+  xlab("Error [MWh]")
+```
+
+
+
+__________________________________________________________________________________________________________
+
+
+## w10, log target, ts=6
+
+```{r}
+load("post_w10_log_ts6.rda")
+post_w10_log_ts6
+```
+
+**Error**
+
+Calculate
+```{r}
+error_w10_log_ts6 <- model_error(
+                            post_w10_log_ts6,
+                            data_sampler(full_df_ts6, c(2019), c(12), 3, 22))
+```
+
+
+
+Some stats
+```{r}
+summary(error_w10_log_ts6)
+```
+
+
+Plot
+```{r}
+mcmc_areas(error_w10_log_ts6,
+           pars = c("error"),
+           prob = 0.5,
+           prob_outer = 0.999) +
+  xlim(-2000, 2000) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
+  xlab("Error [MWh]")
+```
+
+
+
+
+
+__________________________________________________________________________________________________________
+
+
+## w10, log target, ts=24
+
+```{r}
+load("post_w10_log_ts24.rda")
+post_w10_log_ts24
+```
+
+**Error**
+
+Calculate
+```{r}
+error_w10_log_ts24 <- model_error(
+                            post_w10_log_ts24,
+                            data_sampler(full_df_ts24, c(2019), c(12), 3, 22))
+```
+
+
+
+Some stats
+```{r}
+summary(error_w10_log_ts24)
+```
+
+
+Plot
+```{r}
+mcmc_areas(error_w10_log_ts24,
+           pars = c("error"),
+           prob = 0.5,
+           prob_outer = 0.999) +
+  xlim(-2000, 2000) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
+  xlab("Error [MWh]")
+```
+
+
+## w10, w100, log target, ts=0
+
+```{r}
+load("post_w10_w100_log.rda")
+post_w10_w100_log
+```
+
+**Error**
+
+Calculate
+```{r}
+error_w10_w100_log <- model_error(
                             post_w10_w100_log,
                             data_sampler(full_df, c(2019), c(12), 3, 22))
-
-error_w10_w100_log_ts2
 ```
 
+
+
+Some stats
+```{r}
+summary(error_w10_w100_log)
+```
+
+Plot
+```{r}
+mcmc_areas(error_w10_w100_log,
+           pars = c("error"),
+           prob = 0.5,
+           prob_outer = 0.999) +
+  xlim(-2000, 2000) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
+  xlab("Error [MWh]")
+```
+
+
+_________________________________________________________________________________________________________________________________________
+
+
+
+## w10, w100, log target, ts=2
+
+```{r}
+load("post_w10_w100_log_ts2.rda")
+post_w10_w100_log_ts2
+```
+
+**Error**
+
+Calculate
+```{r}
+error_w10_w100_log_ts2 <- model_error(
+                            post_w10_w100_log_ts2,
+                            data_sampler(full_df, c(2019), c(12), 3, 22))
+```
+
+
+
+Some stats
+```{r}
+summary(error_w10_w100_log_ts2)
+```
+
+
+Plot
 ```{r}
 mcmc_areas(error_w10_w100_log_ts2,
            pars = c("error"),
            prob = 0.5,
            prob_outer = 0.999) +
-  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
   xlim(-2000, 2000) +
+  scale_x_continuous(breaks = c(-1000, -750, -500, -250, -100, 0, 100, 250, 500, 750)) +
   xlab("Error [MWh]")
 ```
 
-```{r}
-min(error_w10_w100_log_ts2$predicted)
-```
 
-
-
-## w10, log target
-
-## w10, log target, and ts 2
-
-## w10, log target, and ts 6
-
-## w10, log target, and ts 24
+_____________________________________________________________________________________________________________
