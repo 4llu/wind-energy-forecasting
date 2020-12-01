@@ -5,3 +5,5 @@ data/
 *.RData
 *.Rhistory
 *.nb.html
+*.RDataTmp
+*.rda
