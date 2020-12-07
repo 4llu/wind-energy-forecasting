@@ -273,11 +273,29 @@ full_df
 full_df_2
 ```
 
+
+Add scaled version of temperature ans surface pressure
+```{r}
+full_df_2 <- full_df_2 %>% mutate(t2m_s = t2m / sd(t2m), sp_s = sp / sd(sp))
+```
+
+```{r}
+summary(full_df_2 %>% select(-c(datetime, energy, season, region, t2m, sp)), digits=2)
+```
+
+```{r}
+full_df_2 %>% select(-c(datetime, energy, season, region)) %>% summarise(across(u10:sp_s, sd))
+```
+
+
 Change alt region data into wide format
 
 ```{r}
-full_df_alt <- full_df_2 %>% pivot_wider(names_from = "region", values_from = c("u10", "v10", "w10", "u100", "v100", "w100", "t2m", "sp"))
+full_df_alt <- full_df_2 %>% pivot_wider(names_from = "region", values_from = c("u10", "v10", "w10", "u100", "v100", "w100", "t2m", "t2m_s", "sp", "sp_s"))
 ```
+
+
+
 
 ### [Helper] Forecast Timestep Shift
 
