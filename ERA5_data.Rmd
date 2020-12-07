@@ -120,7 +120,6 @@ Create region masks
 
 ```{r}
 # Regions (17)
-region_num <- 17
 regions <- rbind(
     c(19.0, 21.2, 60.6, 59.5), # Ahvenanmaa
     c(21.2, 23.5, 61.0, 59.5), # Varsinais-Suomi
@@ -141,27 +140,51 @@ regions <- rbind(
     c(22.7, 30.5, 69.5, 66.0)  # Lappi
 )
 
-# Region map base
-region_map <- replicate(length(lat), numeric(length(lon))) - 1
+# Regions (7)
+regions_2 <- rbind(
+    c(23.3, 27.0, 69.5, 65.5), # top-left
+    c(27.0, 29.5, 69.5, 65.5), # top-right
+    c(21.0, 26.5, 65.5, 63.0), # mid-left
+    c(26.5, 30.0, 65.5, 63.0), # mid-right
+    c(21.0, 25.6, 63.0, 60.0), # bottom-left
+    c(25.6, 30.5, 63.0, 60.0), # bottom-right
+    c(19.5, 21.0, 60.5, 59.7)  # Ahvenanmaa
+)
 
-# Fit
-for (y in 1:length(lat)) {
-  for (x in 1:length(lon)) {
-    for (i in 1:length(regions[,1])) {
-      r <- regions[i,]
-      if (lon[x] >= r[1] && lon[x] <= r[2] && lat[y] <= r[3] && lat[y] >= r[4]) {
-        region_map[x, y] <- i
-        break
+# Mapper helper
+region_mapper <- function(regions) {
+  region_map <- replicate(length(lat), numeric(length(lon))) - 1
+  
+  for (y in 1:length(lat)) {
+    for (x in 1:length(lon)) {
+      for (i in 1:length(regions[,1])) {
+        r <- regions[i,]
+        if (lon[x] >= r[1] && lon[x] <= r[2] && lat[y] <= r[3] && lat[y] >= r[4]) {
+          region_map[x, y] <- i
+          break
+        }
       }
     }
   }
+  return(region_map)
 }
+
+# Region map bases
+region_map <- region_mapper(regions)
+region_map_2 <- region_mapper(regions_2)
+
 ```
 
 ```{r}
+# Calculate regions masks
 region_masks <- array(dim = c(length(lon), length(lat), length(regions)))
 for (r in 1:length(regions)) {
   region_masks[,,r] <- region_map == r
+}
+
+region_masks_2 <- array(dim = c(length(lon), length(lat), length(regions_2)))
+for (r in 1:length(regions_2)) {
+  region_masks_2[,,r] <- region_map_2 == r
 }
 ```
 
@@ -169,27 +192,40 @@ for (r in 1:length(regions)) {
 Calculate region averages
 
 ```{r}
-region_means <- array(dim = c(length(time) * region_num, feature_num + 2)) # +2 for datetime and region column
-colnames(region_means) <- c("datetime", "u10", "v10", "w10", "u100", "v100", "w100", "t2m", "sp", "region")
-for (t in 1:length(time)) {
-  for (r in 1:region_num) {
-    r_mask <- region_masks[,,r]
-    region_means[(t-1) * region_num + r,] <- c(
-      with_tz(ts[t + 2], tz="UTC"), # Datetime
-      mean(u10[,,t][r_mask]),
-      mean(v10[,,t][r_mask]),
-      mean(w10[,,t][r_mask]),
-      mean(u100[,,t][r_mask]),
-      mean(v100[,,t][r_mask]),
-      mean(w100[,,t][r_mask]),
-      mean(t2m[,,t][r_mask]),
-      mean(sp[,,t][r_mask]),
-      r # Region column
-    )
-  }
+# Helper to calculate region means with given regions
+calc_region_means <- function(regions, region_masks) {
+  region_num <- length(regions[,1])
+  
+  region_means <- array(dim = c(length(time) * region_num, feature_num + 2)) # +2 for datetime and region column
+  colnames(region_means) <- c("datetime", "u10", "v10", "w10", "u100", "v100", "w100", "t2m", "sp", "region")
+  
+  for (t in 1:length(time)) {
+    for (r in 1:region_num) {
+      r_mask <- region_masks[,,r]
+      region_means[(t-1) * region_num + r,] <- c(
+        with_tz(ts[t + 2], tz="UTC"), # Datetime
+        mean(u10[,,t][r_mask]),
+        mean(v10[,,t][r_mask]),
+        mean(w10[,,t][r_mask]),
+        mean(u100[,,t][r_mask]),
+        mean(v100[,,t][r_mask]),
+        mean(w100[,,t][r_mask]),
+        mean(t2m[,,t][r_mask]),
+        mean(sp[,,t][r_mask]),
+        r # Region column
+      )
+    }
+  }  
+  
+  return(region_means)
 }
-head(region_means, n=20)
+
+region_means <- calc_region_means(regions, region_masks)
+region_means_2 <- calc_region_means(regions_2, region_masks_2)
+
+head(region_means_2, n=20)
 ```
+
 ```{r}
 # Helper to to map months to seasons
 seasons <- rbind(
@@ -207,42 +243,40 @@ season_map <- function(m) {
   }  
   return(-1)
 }
+```
 
+```{r}
 predictors <- as_tibble(region_means) %>%
                     # Change datetime format
                     mutate(datetime = as_datetime(datetime)) %>% 
                     # Add season
                     mutate(season = map_int(month(datetime), season_map), .before = "u10")
-predictors
-```
 
+# Alternate regions
+predictors_2 <- as_tibble(region_means_2) %>%
+                    # Change datetime format
+                    mutate(datetime = as_datetime(datetime)) %>% 
+                    # Add season
+                    mutate(season = map_int(month(datetime), season_map), .before = "u10")
+
+predictors
+predictors_2
+```
 
 ### Combine
 
 ```{r}
 full_df <- inner_join(target, predictors, by = "datetime")
+full_df_2 <- inner_join(target, predictors_2, by = "datetime")
 
 full_df
+full_df_2
 ```
 
-### Full aggregate DF
+Change alt region data into wide format
 
 ```{r}
-aggregate_df <- full_df %>% group_by(datetime) %>% 
-                  mutate(
-                    u10 = mean(u10),
-                    v10 = mean(v10),
-                    w10 = mean(w10),
-                    u100 = mean(u100),
-                    v100 = mean(v100),
-                    w100 = mean(w100),
-                    t2m = mean(t2m),
-                    sp = mean(sp),
-                    region = NULL
-                  ) %>% 
-                  distinct() %>% 
-                  ungroup()
-aggregate_df
+full_df_alt <- full_df_2 %>% pivot_wider(names_from = "region", values_from = c("u10", "v10", "w10", "u100", "v100", "w100", "t2m", "sp"))
 ```
 
 ### [Helper] Forecast Timestep Shift
@@ -262,16 +296,20 @@ ts_shift <- function (df, ts, regions) {
 ```
 
 ```{r}
-ag_df_s2 <- ts_shift(aggregate_df, ts=2, regions=1)
-ag_df_s2
-```
-
-```{r}
 full_df_ts2 <- ts_shift(full_df, ts=2, regions=17)
 full_df_ts6 <- ts_shift(full_df, ts=6, regions=17)
 full_df_ts24 <- ts_shift(full_df, ts=24, regions=17)
 
 save(full_df, full_df_ts2, full_df_ts6, full_df_ts24, file = "full_df.rda")
+```
+
+```{r}
+# Alternate regions
+full_df_alt_ts2 <- ts_shift(full_df_alt, ts=2, regions=17)
+full_df_alt_ts6 <- ts_shift(full_df_alt, ts=6, regions=17)
+full_df_alt_ts24 <- ts_shift(full_df_alt, ts=24, regions=17)
+
+save(full_df_alt, full_df_alt_ts2, full_df_alt_ts6, full_df_alt_ts24, file = "full_df_alt.rda")
 ```
 
 ### [Helper] Training data sampler

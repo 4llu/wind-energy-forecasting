@@ -1,0 +1,118 @@
+---
+title: "Model analysis"
+output: html_notebook
+---
+
+```{r}
+library(rstanarm)
+library(tidyverse)
+library(lubridate)
+```
+
+```{r}
+# rstanarm options
+options(mc.cores = parallel::detectCores() - 1)
+```
+
+
+```{r}
+load("full_df_alt.rda")
+full_df_alt
+```
+
+## Training data
+
+```{r}
+# df:     dataframe to sample from
+# years:  vector of years to include
+# months: vector of months to include
+# dhour:  which hours to pick (hour %% dhour == 0)
+data_sampler <- function(df, years, months, ddays, dhour) {
+  sample <- df %>% filter(
+                    year(datetime) %in% years &
+                    month(datetime) %in% months &
+                    day(datetime) %% ddays == 0 &
+                    hour(datetime) %% dhour == 0
+                  )
+  return(sample)
+}
+```
+
+```{r}
+year <- seq(1, 12)
+training_df <- data_sampler(full_df_alt, c(2018), year, 1, 6)
+training_df_ts2 <- data_sampler(full_df_alt_ts2, c(2018), year, 1, 6)
+training_df_ts6 <- data_sampler(full_df_alt_ts6, c(2018), year, 1, 6)
+training_df_ts24 <- data_sampler(full_df_alt_ts24, c(2018), year, 1, 6)
+```
+
+
+
+## All predictors, log target, ts=0
+
+```{r}
+post_full_log <- stan_glmer(
+                    formula = log_energy ~ w10_1 + w10_2 + w10_3 + w10_4 + w10_5 + w10_6 + w10_7 +
+                                            w100_1 + w100_2 + w100_3 + w100_4 + w100_5 + w100_6 + w100_7 +
+                                            t2m_1 + t2m_2 + t2m_3 + t2m_4 + t2m_5 + t2m_6 + t2m_7 +
+                                            sp_1 +  sp_2 +  sp_3 + sp_4 +  sp_5 +  sp_6 +  sp_7 +
+                                            (w10_1 + w10_2 + w10_3 + w10_4 + w10_5 + w10_6 + w10_7 +
+                                            w100_1 + w100_2 + w100_3 + w100_4 + w100_5 + w100_6 + w100_7 +
+                                            t2m_1 + t2m_2 + t2m_3 + t2m_4 + t2m_5 + t2m_6 + t2m_7 +
+                                            sp_1 +  sp_2 +  sp_3 + sp_4 +  sp_5 +  sp_6 +  sp_7 | season),
+                      data = training_df,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = normal(location = 4, scale = 1),
+                      prior = normal(location = 0, scale = 1),
+                      prior_aux = exponential(rate = 1),
+                      QR = TRUE
+                    )
+
+# Save the fit
+save(post_full_log, file = "post_full_log.rda")
+# Short summary
+post_full_log
+```
+
+
+## All predictors, log target, ts=2
+
+```{r}
+post_full_log_ts2 <- stan_glm(
+                    formula = log_energy ~ w10_1 + w10_2 + w10_3 + w10_4 + w10_5 + w10_6 + w10_7 +
+                                            w100_1 + w100_2 + w100_3 + w100_4 + w100_5 + w100_6 + w100_7 +
+                                            t2m_1 + t2m_2 + t2m_3 + t2m_4 + t2m_5 + t2m_6 + t2m_7 +
+                                            sp_1 +  sp_2 +  sp_3 + sp_4 +  sp_5 +  sp_6 +  sp_7,
+                      data = training_df_ts2,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = normal(location = 4, scale = 1),
+                      prior = normal(location = 0, scale = 1),
+                      prior_aux = exponential(rate = 1)
+                    )
+
+# Save the fit
+save(post_full_log_ts2, file = "post_full_log_ts2.rda")
+# Short summary
+post_full_log_ts2
+```
+
+## All predictors, log target, ts=6
+
+```{r}
+post_full_log_ts6 <- stan_glm(
+                    formula = log_energy ~ w10_1 + w10_2 + w10_3 + w10_4 + w10_5 + w10_6 + w10_7 +
+                                            w100_1 + w100_2 + w100_3 + w100_4 + w100_5 + w100_6 + w100_7 +
+                                            t2m_1 + t2m_2 + t2m_3 + t2m_4 + t2m_5 + t2m_6 + t2m_7 +
+                                            sp_1 +  sp_2 +  sp_3 + sp_4 +  sp_5 +  sp_6 +  sp_7,
+                      data = training_df_ts6,
+                      family = gaussian(link = "identity"),
+                      prior_intercept = normal(location = 4, scale = 1),
+                      prior = normal(location = 0, scale = 1),
+                      prior_aux = exponential(rate = 1)
+                    )
+
+# Save the fit
+save(post_full_log_ts6, file = "post_full_log_ts6.rda")
+# Short summary
+post_full_log_ts6
+```
